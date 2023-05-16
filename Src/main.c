@@ -36,7 +36,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define LCD_ADDRESS 0x27
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -126,52 +126,58 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-  LCD_Init();
-  LCD_Clear();
+    lcd_init(&hi2c1, LCD_ADDRESS);
+    SSD1306_Init();
 
     HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
-
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t*)adc_buff, ADC_BUFF_LEN);
-
-//    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+//    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Buzzer
     HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
+    HAL_ADC_Start_DMA(&hadc1, (uint32_t *) adc_buff, ADC_BUFF_LEN);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
+    // Check UART
     printf("Hello world!\r\n");
-    LCD_Print("Hello World!");
-    HAL_Delay(2000);
-    LCD_Clear();
 
-    SSD1306_Init();  // initialise
-
-    /// lets print some string
-
-    SSD1306_GotoXY (0,0);
-    SSD1306_Puts ("HELLO", &Font_11x18, 1);
-    SSD1306_GotoXY (10, 30);
-    SSD1306_Puts ("  WORLD :)", &Font_11x18, 1);
+    // Check OLED
+    SSD1306_GotoXY(0, 0);
+    SSD1306_Puts("HELLO", &Font_11x18, 1);
+    SSD1306_GotoXY(10, 30);
+    SSD1306_Puts("  WORLD :)", &Font_11x18, 1);
     SSD1306_UpdateScreen(); //display
-    /* Infinite loop */
 
-    uint8_t data[] = {16 };
+    // Check EEPROM
+    uint8_t data[] = {16};
     HAL_I2C_Mem_Write(&hi2c1, 0xA0, 0x0010, 2, data, 1, 100);
     HAL_Delay(100);
     uint8_t res = 0;
     HAL_I2C_Mem_Read(&hi2c1, 0xA0, 0x0010, 2, &res, 1, 100);
-
     printf("Res = %d\r\n", res);
 
+    // Check LCD
+    lcd_start_payload();
+    lcd_clear_display();
+    lcd_set_cursor(1, 3);
+    lcd_set_on(true, false, false);
+    lcd_print_c('a');
+    lcd_set_cursor(0, 0);
+    lcd_print_c('P');
+    lcd_set_cursor(0, 4);
+    lcd_print("Hello!");
+    lcd_set_cursor(1, 5);
+    lcd_print_float(13.457);
+    lcd_stop_payload();
+    lcd_send_payload();
+
     int i = 0;
-    for(;;) {
+    for (;;) {
         HAL_Delay(500);
         HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
         int enc_val = (int) (TIM2->CNT >> 2);
-        LCD_Cursor(0, 0);
-        LCD_Print_int(enc_val);
+
         //HAL_ADC_Start_DMA(&hadc1, adc_buff, sizeof(adc_buff));
 
         //osDelay(50);
@@ -179,19 +185,19 @@ int main(void)
 
         //memset(adc_buff, 0, sizeof(adc_buff) * sizeof(uint32_t));
 //        ADC1->CR2 |= ADC_CR2_DMA;
-if (done) {
-    done = false;
-    printf("%3d: ", i++);
-    for (int j = 0; j < ADC_BUFF_LEN; j++) {
-        float val = (float)(adc_buff[j]>>4)/1240;
-        printf("%0.3f ", val);
-    }
-    printf("\r\n");
-          HAL_ADC_Start_DMA(&hadc1, adc_buff, ADC_BUFF_LEN);
-}
+        if (done) {
+            done = false;
+            printf("%3d: ", i++);
+            for (int j = 0; j < ADC_BUFF_LEN; j++) {
+                float val = (float) (adc_buff[j] >> 4) / 1240;
+                printf("%0.3f ", val);
+            }
+            printf("\r\n");
+            HAL_ADC_Start_DMA(&hadc1, adc_buff, ADC_BUFF_LEN);
+        }
     }
 
-while (1) {
+    while (1) {
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -220,12 +226,7 @@ void SystemClock_Config(void)
   RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
   RCC_OscInitStruct.HSIState = RCC_HSI_ON;
   RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
-  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
-  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
-  RCC_OscInitStruct.PLL.PLLM = 16;
-  RCC_OscInitStruct.PLL.PLLN = 336;
-  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV4;
-  RCC_OscInitStruct.PLL.PLLQ = 4;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_NONE;
   if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
   {
     Error_Handler();
@@ -235,12 +236,12 @@ void SystemClock_Config(void)
   */
   RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
                               |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
-  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_HSI;
   RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
   RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV2;
   RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
 
-  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_2) != HAL_OK)
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_0) != HAL_OK)
   {
     Error_Handler();
   }
@@ -268,7 +269,7 @@ static void MX_ADC1_Init(void)
   /** Configure the global features of the ADC (Clock, Resolution, Data Alignment and number of conversion)
   */
   hadc1.Instance = ADC1;
-  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
+  hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV2;
   hadc1.Init.Resolution = ADC_RESOLUTION_12B;
   hadc1.Init.ScanConvMode = ENABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
@@ -607,6 +608,9 @@ static void MX_DMA_Init(void)
   __HAL_RCC_DMA1_CLK_ENABLE();
 
   /* DMA interrupt init */
+  /* DMA1_Stream1_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
@@ -681,7 +685,7 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
     }
 }
 
-void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* AdcHandle) {
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *AdcHandle) {
     if (done == false) {
         done = true;
     } else {
