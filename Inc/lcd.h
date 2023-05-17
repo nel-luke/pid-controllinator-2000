@@ -8,17 +8,22 @@
 #include "stm32f4xx_hal.h"
 #include <stdbool.h>
 
-void lcd_init(I2C_HandleTypeDef* handle, uint8_t addr);
-void lcd_start_payload();
-void lcd_stop_payload();
-void lcd_send_payload();
+/* I2C address */
+#ifndef LCD_I2C_ADDR
+#define LCD_I2C_ADDR         (0x27<<1)
+#endif
 
-void lcd_clear_display(void);
-void lcd_set_on(bool display, bool cursor, bool blinking);
-void lcd_set_cursor(uint8_t row, uint8_t col);
-void lcd_print_c(char c);
-void lcd_print(const char* str);
-void lcd_print_int(int val);
-void lcd_print_float(float val);
+HAL_StatusTypeDef LCD_Init(I2C_HandleTypeDef* handle);
+void LCD_Begin_Payload(void);
+void LCD_End_Payload(void);
+void LCD_Send_Payload(void);
+
+void LCD_Clear_Display(void);
+void LCD_Enable(bool display, bool cursor, bool blinking);
+void LCD_Set_Cursor(uint8_t row, uint8_t col);
+void LCD_Print_c(char c);
+void LCD_Print_s(char* str);
+void LCD_Print_i(int val);
+void LCD_Print_f(float val);
 
 #endif //PID_CONTROLLER_LCD_H

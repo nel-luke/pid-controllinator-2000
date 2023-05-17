@@ -21,12 +21,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include <stdio.h>
-#include <string.h>
-#include <stdbool.h>
-
-#include "lcd.h"
-#include "ssd1306.h"
+#include "controller.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -36,7 +31,7 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define LCD_ADDRESS 0x27
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -60,9 +55,7 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
-#define ADC_BUFF_LEN 2
-volatile uint16_t adc_buff[ADC_BUFF_LEN];
-volatile bool done = false;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -83,7 +76,7 @@ static void MX_TIM1_Init(void);
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
 int __io_putchar(int ch) { // NOLINT(bugprone-reserved-identifier)
-    HAL_UART_Transmit(&huart2, &ch, 1, 10);
+    HAL_UART_Transmit(&huart2, (unsigned char*)&ch, 1, 10);
 }
 
 /* USER CODE END 0 */
@@ -126,76 +119,13 @@ int main(void)
   MX_TIM1_Init();
   /* USER CODE BEGIN 2 */
 
-    lcd_init(&hi2c1, LCD_ADDRESS);
-    SSD1306_Init();
-
-    HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL);
-//    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1); // Buzzer
-    HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1);
-    HAL_ADC_Start_DMA(&hadc1, (uint32_t *) adc_buff, ADC_BUFF_LEN);
+    Controller_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
-    // Check UART
-    printf("Hello world!\r\n");
-
-    // Check OLED
-    SSD1306_GotoXY(0, 0);
-    SSD1306_Puts("HELLO", &Font_11x18, 1);
-    SSD1306_GotoXY(10, 30);
-    SSD1306_Puts("  WORLD :)", &Font_11x18, 1);
-    SSD1306_UpdateScreen(); //display
-
-    // Check EEPROM
-    uint8_t data[] = {16};
-    HAL_I2C_Mem_Write(&hi2c1, 0xA0, 0x0010, 2, data, 1, 100);
-    HAL_Delay(100);
-    uint8_t res = 0;
-    HAL_I2C_Mem_Read(&hi2c1, 0xA0, 0x0010, 2, &res, 1, 100);
-    printf("Res = %d\r\n", res);
-
-    // Check LCD
-    lcd_start_payload();
-    lcd_clear_display();
-    lcd_set_cursor(1, 3);
-    lcd_set_on(true, false, false);
-    lcd_print_c('a');
-    lcd_set_cursor(0, 0);
-    lcd_print_c('P');
-    lcd_set_cursor(0, 4);
-    lcd_print("Hello!");
-    lcd_set_cursor(1, 5);
-    lcd_print_float(13.457);
-    lcd_stop_payload();
-    lcd_send_payload();
-
-    int i = 0;
-    for (;;) {
-        HAL_Delay(500);
-        HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
-
-        int enc_val = (int) (TIM2->CNT >> 2);
-
-        //HAL_ADC_Start_DMA(&hadc1, adc_buff, sizeof(adc_buff));
-
-        //osDelay(50);
-//        ADC1->CR2 &= ~ADC_CR2_DMA;
-
-        //memset(adc_buff, 0, sizeof(adc_buff) * sizeof(uint32_t));
-//        ADC1->CR2 |= ADC_CR2_DMA;
-        if (done) {
-            done = false;
-            printf("%3d: ", i++);
-            for (int j = 0; j < ADC_BUFF_LEN; j++) {
-                float val = (float) (adc_buff[j] >> 4) / 1240;
-                printf("%0.3f ", val);
-            }
-            printf("\r\n");
-            HAL_ADC_Start_DMA(&hadc1, adc_buff, ADC_BUFF_LEN);
-        }
-    }
+    Controller_Welcome();
 
     while (1) {
     /* USER CODE END WHILE */
@@ -611,6 +541,9 @@ static void MX_DMA_Init(void)
   /* DMA1_Stream1_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA1_Stream1_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA1_Stream1_IRQn);
+  /* DMA1_Stream7_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(DMA1_Stream7_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(DMA1_Stream7_IRQn);
   /* DMA2_Stream0_IRQn interrupt configuration */
   HAL_NVIC_SetPriority(DMA2_Stream0_IRQn, 0, 0);
   HAL_NVIC_EnableIRQ(DMA2_Stream0_IRQn);
@@ -686,11 +619,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t pin) {
 }
 
 void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef *AdcHandle) {
-    if (done == false) {
-        done = true;
-    } else {
-        printf("not.\r\n");
-    }
+//    if (done == false) {
+//        done = true;
+//    } else {
+//        printf("not.\r\n");
+//    }
 }
 
 /* USER CODE END 4 */
