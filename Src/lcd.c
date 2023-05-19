@@ -104,8 +104,8 @@ void LCD_Print_c(char c) {
     new_cmd(LCD_DATA(c));
 }
 
-void LCD_Print_s(char* str) {
-    for (char* i = str; *i != '\0'; i++) {
+void LCD_Print_s(const char* str) {
+    for (char const* i = str; *i != '\0'; i++) {
         new_cmd(LCD_DATA(*i));
     }
 }
@@ -122,6 +122,12 @@ void LCD_Print_f(float val) {
     LCD_Print_s(integer);
 }
 
+void LCD_Print_ff(float val, size_t width, size_t precision) {
+    char integer[16] = { 0 };
+    sprintf(integer, "%0*.*f", width, precision, val);
+    LCD_Print_s(integer);
+}
+
 void LCD_Begin_Payload() {
     cmd_list = calloc(1, sizeof(lcd_cmd));
 }
@@ -132,6 +138,10 @@ void LCD_End_Payload() {
     while(i->next != NULL) {
         cmd_buff_length += 4;
         i = i->next;
+    }
+
+    while (HAL_I2C_GetState(i2c_handle) != HAL_I2C_STATE_READY) {
+        HAL_Delay(1);
     }
 
     free(cmd_buff);
@@ -182,6 +192,8 @@ HAL_StatusTypeDef LCD_Init(I2C_HandleTypeDef* handle) {
     lcd_set_ddram_increment();
     LCD_Enable(true, false, false);
     LCD_End_Payload();
+
+    HAL_Delay(100);
     LCD_Send_Payload();
 
     return HAL_OK;

@@ -59,6 +59,7 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define DUTY_50 4200
 #define B1_Pin GPIO_PIN_13
 #define B1_GPIO_Port GPIOC
 #define ControlLED_Pin GPIO_PIN_0
@@ -81,6 +82,8 @@ void Error_Handler(void);
 #define Measure_GPIO_Port GPIOA
 #define OLED_SCL_Pin GPIO_PIN_10
 #define OLED_SCL_GPIO_Port GPIOB
+#define CPU_LOAD_Pin GPIO_PIN_8
+#define CPU_LOAD_GPIO_Port GPIOC
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
@@ -102,6 +105,9 @@ extern DMA_HandleTypeDef hdma_i2c2_tx;
 extern TIM_HandleTypeDef htim1;
 extern TIM_HandleTypeDef htim2;
 extern TIM_HandleTypeDef htim3;
+extern TIM_HandleTypeDef htim4;
+extern TIM_HandleTypeDef htim5;
+extern TIM_HandleTypeDef htim9;
 
 extern UART_HandleTypeDef huart2;
 /* USER CODE END Private defines */
