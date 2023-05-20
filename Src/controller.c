@@ -79,6 +79,8 @@ static const char edit_o_suf[] = " V";
 #define OUTPUT_VAL      TIM3->CCR1
 #define SAMPLE_RATE     30e3
 
+#define SCREEN_BUFF_LEN   128
+
 static struct {
     float Kp;
     float Ki;
@@ -127,6 +129,12 @@ static struct {
     bool manual_control;
     bool first_entry;
     bool edit_digit;
+
+    uint16_t S_buff[128];
+    uint16_t* S_ptr;
+
+    uint16_t I_buff[128];
+    uint16_t* I_ptr;
 } state;
 
 static void Start_Buzzer(void) {
@@ -199,6 +207,9 @@ void Controller_Init(void) {
     state.current_lcd = LCD_MAIN;
     state.manual_control = true;
     state.first_entry = true;
+
+    state.S_ptr = state.S_buff;
+    state.I_ptr = state.I_buff;
 
 //    memset(&parameters, 0, sizeof(parameters));
 //    EEPROM_Save(EEPROM_PARAMETERS_ADDR, &parameters, sizeof(parameters));
@@ -388,21 +399,25 @@ static void Controller_Do_Control(void) {
     static uint32_t lastInput = 0;
 
     if (state.manual_control) {
-        OUTPUT_VAL = (uint16_t)floor((float)state.S_RPM * state.C);
-        ITerm = OUTPUT_VAL;
+        uint16_t val = (uint16_t)floor((float)state.S_RPM * state.C);
+        OUTPUT_VAL = val;
+        ITerm = val;
     } else {
-        ITerm += state.k_i * state.e_ss;
+        ITerm += state.k_i * state.e_ss * state.C;
         ITerm = CLAMP(ITerm, DUTY_MIN, DUTY_MAX);
 
-        double dInput = state.I_RPM - lastInput;
-        double output = state.k_p*state.e_ss + ITerm - state.k_d*dInput;
-        OUTPUT_VAL = CLAMP((uint16_t)floor(output * state.C), DUTY_MIN, DUTY_MAX);
+        double dInput = (state.I_RPM - lastInput)*state.C;
+        double output = state.k_p*state.e_ss*state.C + ITerm - state.k_d*dInput;
+        OUTPUT_VAL = CLAMP((uint16_t)floor(output), DUTY_MIN, DUTY_MAX);
     }
     lastInput = state.I_RPM;
 }
 
 _Noreturn void Service_Control_Task(__attribute__((unused)) void const* argument) {
     static size_t count = 0;
+    static float S_avg = 0.0f;
+    static float I_avg = 0.0f;
+    static int sample_count = SAMPLE_RATE;
 
     while(1) {
         if (state.adc_done || count++ == 30) {
@@ -418,6 +433,22 @@ _Noreturn void Service_Control_Task(__attribute__((unused)) void const* argument
 
             state.S_RPM = (uint16_t) floorf(state.S_V * parameters.S_50 / ADC_MID);
             state.I_RPM = (uint16_t) floorf(state.I_V * parameters.I_50 / ADC_MID);
+
+            if (sample_count < SAMPLE_RATE/16) {
+                S_avg = (S_avg + (float)state.S_RPM)/2;
+                I_avg = (I_avg + (float)state.I_RPM)/2;
+                sample_count++;
+            } else {
+                *state.S_ptr = (uint16_t)floorf(S_avg);
+                *state.I_ptr = (uint16_t)floorf(I_avg);
+
+                sample_count = 0;
+                S_avg = state.S_RPM;
+                I_avg = state.I_RPM;
+
+                state.S_ptr = (state.S_ptr-state.S_buff)<SCREEN_BUFF_LEN-1 ? state.S_ptr+1 : state.S_buff;
+                state.I_ptr = (state.I_ptr-state.I_buff)<SCREEN_BUFF_LEN-1 ? state.I_ptr+1 : state.I_buff;
+            }
 
             state.e_ss = state.S_RPM - state.I_RPM;
 
@@ -452,7 +483,6 @@ static void Store_Digit(float* value, uint8_t val_width, uint8_t val_prec, uint8
 static void Edit_Value(float* value, uint8_t val_width, uint8_t val_prec, uint8_t pos_min, uint8_t pos_mid, uint8_t pos_max) {
     if (state.old_pos == LCD_X) {
         state.current_lcd = LCD_EDIT;
-        Update_Values();
         ENCODER_RESET();
         ENCODER_MAX(10);
     } else if (state.old_pos < pos_max && state.old_pos > pos_min && state.old_pos != pos_mid) {
@@ -461,6 +491,9 @@ static void Edit_Value(float* value, uint8_t val_width, uint8_t val_prec, uint8_
 
         state.edit_digit ^= 1;
         state.old_digit = state.edit_digit ? Get_Digit(value, val_width, val_prec, state.old_pos-pos_min-1) : state.old_pos;
+
+        Update_Values();
+
         TIM2->CNT = state.old_digit << 2;
         ENCODER_MAX(state.edit_digit ? 10 : 16);
     }
@@ -533,4 +566,60 @@ void Controller_Reset_Enc_Cooldown(void) {
 
 void Controller_Reset_Btn_Cooldown(void) {
     state.btn_cooldown = false;
+}
+
+_Noreturn void Service_OLED_Task(__attribute__((unused)) void *argument) {
+    while (1) {
+        // Clear screen
+        OLED_Fill(OLED_COLOR_BLACK);
+
+        // Draw divider
+        OLED_DrawLine(0, 31, 127, 31, OLED_COLOR_WHITE);
+        OLED_DrawLine(0, 32, 127, 32, OLED_COLOR_WHITE);
+
+        // Draw cursor
+        uint16_t x = state.S_ptr-state.S_buff;
+        OLED_DrawLine(x, 0, x, 63, OLED_COLOR_WHITE);
+
+        bool toggle = true;
+        for (int i = 0; i < 127; i++) {
+            if (i % 4 == 0)
+                toggle ^= 1;
+
+            if (toggle)
+                OLED_DrawPixel(i, 48, OLED_COLOR_WHITE);
+        }
+
+        int16_t max = 0;
+        for (size_t i = 0; i < SCREEN_BUFF_LEN; i++) {
+            max = MAX(state.S_buff[i], max);
+        }
+
+        uint16_t prev = (uint16_t)(floor(state.S_buff[0] * -1*(30.0/max)) + (int16_t)30);
+        for (int i = 1; i < SCREEN_BUFF_LEN; i++) {
+            uint16_t val = (uint16_t)(floor(state.S_buff[i] * (-30.0/max)) + (int16_t)30);
+            OLED_DrawLine((i-1), prev,i, val, OLED_COLOR_WHITE);
+
+            prev = val;
+        }
+
+
+        max = 0;
+        for (size_t i = 0; i < SCREEN_BUFF_LEN; i++) {
+            int val = (int16_t)(state.S_buff[i]-state.I_buff[i]);
+            val = val < 0 ? (-1 * val) : val;
+            max = MAX(val, max);
+        }
+
+        prev = (int16_t)(ceil((state.S_buff[0]-state.I_buff[0]) * (-15.0/max)) + (int16_t)48);
+        for (int i = 1; i < SCREEN_BUFF_LEN; i++) {
+            uint16_t val = (int16_t)(ceil((state.S_buff[i]-state.I_buff[i]) * (-15.0/max)) + (int16_t)48);
+            OLED_DrawLine((i-1), prev,i, val, OLED_COLOR_WHITE);
+
+            prev = val;
+        }
+
+        OLED_UpdateScreen();
+        osDelay(20);
+    }
 }

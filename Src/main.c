@@ -95,6 +95,18 @@ const osThreadAttr_t Service_Control_attributes = {
   .stack_size = sizeof(Service_ControlBuffer),
   .priority = (osPriority_t) osPriorityBelowNormal,
 };
+/* Definitions for Service_OLED */
+osThreadId_t Service_OLEDHandle;
+uint32_t Service_OLEDBuffer[ 128 ];
+osStaticThreadDef_t Service_OLEDControlBlock;
+const osThreadAttr_t Service_OLED_attributes = {
+  .name = "Service_OLED",
+  .cb_mem = &Service_OLEDControlBlock,
+  .cb_size = sizeof(Service_OLEDControlBlock),
+  .stack_mem = &Service_OLEDBuffer[0],
+  .stack_size = sizeof(Service_OLEDBuffer),
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
 
 /* USER CODE END PV */
@@ -116,6 +128,7 @@ static void MX_TIM9_Init(void);
 void StartDefaultTask(void *argument);
 void Service_LCD_Task(void *argument);
 void Service_Control_Task(void *argument);
+void Service_OLED_Task(void *argument);
 
 /* USER CODE BEGIN PFP */
 
@@ -203,6 +216,9 @@ int main(void)
 
   /* creation of Service_Control */
   Service_ControlHandle = osThreadNew(Service_Control_Task, NULL, &Service_Control_attributes);
+
+  /* creation of Service_OLED */
+  Service_OLEDHandle = osThreadNew(Service_OLED_Task, NULL, &Service_OLED_attributes);
 
   /* USER CODE BEGIN RTOS_THREADS */
     /* add threads, ... */
@@ -679,7 +695,7 @@ static void MX_TIM5_Init(void)
 
   /* USER CODE END TIM5_Init 1 */
   htim5.Instance = TIM5;
-  htim5.Init.Prescaler = 100;
+  htim5.Init.Prescaler = 300;
   htim5.Init.CounterMode = TIM_COUNTERMODE_UP;
   htim5.Init.Period = 65535;
   htim5.Init.ClockDivision = TIM_CLOCKDIVISION_DIV4;
@@ -940,6 +956,24 @@ __weak void Service_Control_Task(void *argument)
         osDelay(1);
     }
   /* USER CODE END Service_Control_Task */
+}
+
+/* USER CODE BEGIN Header_Service_OLED_Task */
+/**
+* @brief Function implementing the Service_OLED thread.
+* @param argument: Not used
+* @retval None
+*/
+/* USER CODE END Header_Service_OLED_Task */
+__weak void Service_OLED_Task(void *argument)
+{
+  /* USER CODE BEGIN Service_OLED_Task */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END Service_OLED_Task */
 }
 
 /**
