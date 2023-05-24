@@ -22,33 +22,33 @@ static const char edit_pid_pre[] = "X ";
 static const char edit_pid_suf[] = "";
 #define PID_VAL_WIDTH       8
 #define PID_VAL_PREC        4
-#define PID_EDIT_MIN        strlen(edit_pid_pre)-1
+#define PID_EDIT_MIN        (strlen(edit_pid_pre)-1)
 #define PID_EDIT_MID        (PID_EDIT_MIN+PID_VAL_WIDTH-PID_VAL_PREC)
-#define PID_EDIT_MAX        (PID_EDIT_MIN+PID_VAL_WIDTH)
+#define PID_EDIT_MAX        (PID_EDIT_MIN+PID_VAL_WIDTH+1)
 
 static const char edit_s_pre[] = "X 1.6V= ";
 static const char edit_s_suf[] = " RPM";
 #define S_VAL_WIDTH         4
 #define S_VAL_PREC          0
-#define S_EDIT_MIN          strlen(edit_s_pre)-1
+#define S_EDIT_MIN          (strlen(edit_s_pre)-1)
 #define S_EDIT_MID          20
-#define S_EDIT_MAX          (S_EDIT_MIN+S_VAL_WIDTH)
+#define S_EDIT_MAX          (S_EDIT_MIN+S_VAL_WIDTH+1)
 
 static const char edit_i_pre[] = "X 1.6V= ";
 static const char edit_i_suf[] = " RPM";
 #define I_VAL_WIDTH         4
 #define I_VAL_PREC          0
-#define I_EDIT_MIN          strlen(edit_i_pre)-1
+#define I_EDIT_MIN          (strlen(edit_i_pre)-1)
 #define I_EDIT_MID          20
-#define I_EDIT_MAX          (I_EDIT_MIN+I_VAL_WIDTH)
+#define I_EDIT_MAX          (I_EDIT_MIN+I_VAL_WIDTH+1)
 
 static const char edit_o_pre[] = "X 50% = ";
 static const char edit_o_suf[] = " V";
 #define O_VAL_WIDTH         4
 #define O_VAL_PREC          0
-#define O_EDIT_MIN          strlen(edit_o_pre)-1
+#define O_EDIT_MIN          (strlen(edit_o_pre)-1)
 #define O_EDIT_MID          20
-#define O_EDIT_MAX          (O_EDIT_MIN+O_VAL_WIDTH)
+#define O_EDIT_MAX          (O_EDIT_MIN+O_VAL_WIDTH+1)
 
 #define EEPROM_PARAMETERS_ADDR  0x00A0
 
@@ -400,6 +400,7 @@ static void Controller_Do_Control(void) {
 
     if (state.manual_control) {
         uint16_t val = (uint16_t)floor((float)state.S_RPM * state.C);
+        val = CLAMP(val, DUTY_MIN, DUTY_MAX);
         OUTPUT_VAL = val;
         ITerm = val;
     } else {
