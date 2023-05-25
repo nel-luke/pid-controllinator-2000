@@ -74,6 +74,8 @@ void Error_Handler(void);
 #define LD2_GPIO_Port GPIOA
 #define Setpoint_Pin GPIO_PIN_6
 #define Setpoint_GPIO_Port GPIOA
+#define Input_Pin GPIO_PIN_7
+#define Input_GPIO_Port GPIOA
 #define OLED_SCL_Pin GPIO_PIN_10
 #define OLED_SCL_GPIO_Port GPIOB
 #define CPU_LOAD_Pin GPIO_PIN_8

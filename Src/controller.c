@@ -3,6 +3,7 @@
 //
 
 #define BUZZER_ENABLE
+//#define PWM_INPUT
 
 #include "controller.h"
 #include "main.h"
@@ -34,7 +35,11 @@ static const char edit_s_suf[] = " RPM";
 #define S_EDIT_MID          20
 #define S_EDIT_MAX          (S_EDIT_MIN+S_VAL_WIDTH+1)
 
+#ifndef PWM_INPUT
 static const char edit_i_pre[] = "X 1.6V= ";
+#else
+static const char edit_i_pre[] = "X 50% = ";
+#endif
 static const char edit_i_suf[] = " RPM";
 #define I_VAL_WIDTH         4
 #define I_VAL_PREC          0
@@ -70,7 +75,12 @@ static const char edit_o_suf[] = " RPM";
 #define ADC_MID         ((ADC_MIN+ADC_MAX)/2) // 1.6V
 #define ADC_CONST       1285 // For 1V
 #define ADC_OFFSET      50
+
+#ifndef PWM_INPUT
 #define ADC_BUFF_LEN    2
+#else
+#define ADC_BUFF_LEN    1
+#endif
 
 #define MIN(a,b)        (a<b ? a : b)
 #define MAX(a,b)        (a>b ? a : b)
@@ -104,21 +114,29 @@ enum lcd_state {
 
 static struct {
     float S_V;
+#ifndef PWM_INPUT
     float I_V;
+#else
+    float I_D;
+#endif
     float O_DC;
-    int e_ss;
+    float e_ss;
 
     double k_p;
     double k_i;
     double k_d;
     double C;
 
-    uint16_t S_RPM;
-    uint16_t I_RPM;
-    float O_V;
+    float S_RPM;
+    float I_RPM;
+//    float O_V;
 
     volatile uint16_t adc_buff[ADC_BUFF_LEN];
     volatile bool adc_done;
+
+#ifdef PWM_INPUT
+    volatile uint16_t pwm_input[2];
+#endif
 
     enum lcd_state current_lcd;
     uint16_t old_pos;
@@ -199,6 +217,17 @@ void Controller_Init(void) {
         printf("!!Error initializing ADC.\r\n");
     }
 
+#ifdef PWM_INPUT
+    HAL_StatusTypeDef ret = HAL_TIM_IC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t*) &state.pwm_input[0], 1);
+    ret |= HAL_TIM_IC_Start_DMA(&htim3, TIM_CHANNEL_2, (uint32_t*) &state.pwm_input[1], 1);
+    if (ret == HAL_OK) {
+        printf("Input capture initialized");
+    } else {
+        printf("!!Error initializing input capture");
+    }
+    printf(" on TIM3.\r\n");
+#endif
+
     ENC_COOLDOWN_START();
     BTN_COOLDOWN_START();
 //    CONTROLLER_START();
@@ -261,8 +290,8 @@ void Controller_Welcome(void) {
 }
 
 void Set_LCD_Main(void) {
-    static uint16_t old_S = 0;
-    static uint16_t old_e = 0;
+    static float old_S = 0;
+    static float old_e = 0;
     char setpoint[10];
     char error_out[10];
 
@@ -270,16 +299,17 @@ void Set_LCD_Main(void) {
         state.first_entry = false;
         old_S = state.S_RPM;
         old_e = state.e_ss;
+        float error = ((float)old_e/(float)old_S)*100;
 
         LCD_Begin_Payload();
         LCD_Enable(true, false, false);
         LCD_Set_Cursor(0, 0);
         LCD_Print_s("S: ");
-        sprintf(setpoint, "%04d RPM", old_S);
+        sprintf(setpoint, "%04.0f RPM", old_S);
         LCD_Print_s(setpoint);
         LCD_Set_Cursor(1,0);
         LCD_Print_s("e: ");
-        sprintf(error_out, "%+07.2f%%", (float)state.e_ss / (float)state.S_RPM * 100);
+        sprintf(error_out, "%+07.2f%%", error);
         LCD_Print_s(error_out);
         LCD_End_Payload();
         LCD_Send_Payload();
@@ -395,7 +425,7 @@ _Noreturn void Service_LCD_Task(__attribute__((unused)) void const* argument) {
 
 static void Controller_Do_Control(void) {
     static double ITerm = 0;
-    static uint32_t lastInput = 0;
+    static double lastInput = 0;
 
     if (state.manual_control) {
         uint16_t val = (uint16_t)floor((float)state.S_RPM * state.C);
@@ -426,13 +456,19 @@ _Noreturn void Service_Control_Task(__attribute__((unused)) void const* argument
             HAL_GPIO_WritePin(CPU_LOAD_GPIO_Port, CPU_LOAD_Pin, GPIO_PIN_SET);
 
             state.S_V = CLAMP((((float) state.adc_buff[0] - ADC_OFFSET) / ADC_CONST), (float) ADC_MIN, (float) ADC_MAX);
+
+#ifndef PWM_INPUT
             state.I_V = CLAMP((((float) state.adc_buff[1] - ADC_OFFSET) / ADC_CONST), (float) ADC_MIN, (float) ADC_MAX);
+            state.I_RPM = (uint16_t) floorf(state.I_V * parameters.I_50 / ADC_MID);
+#else
+            state.I_D = (float)state.pwm_input[0] / (float)state.pwm_input[1];
+            state.I_RPM = state.I_D * parameters.I_50 / 0.5f;
+#endif
 
             HAL_ADC_Start_DMA(&hadc1, (uint32_t *) state.adc_buff, ADC_BUFF_LEN);
             state.adc_done = false;
 
-            state.S_RPM = (uint16_t) floorf(state.S_V * parameters.S_50 / ADC_MID);
-            state.I_RPM = (uint16_t) floorf(state.I_V * parameters.I_50 / ADC_MID);
+            state.S_RPM = state.S_V * parameters.S_50 / ADC_MID;
 
             if (sample_count < SAMPLE_RATE/16) {
                 S_avg = (S_avg + (float)state.S_RPM)/2;
