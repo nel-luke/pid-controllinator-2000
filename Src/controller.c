@@ -43,7 +43,7 @@ static const char edit_i_suf[] = " RPM";
 #define I_EDIT_MAX          (I_EDIT_MIN+I_VAL_WIDTH+1)
 
 static const char edit_o_pre[] = "X 50% = ";
-static const char edit_o_suf[] = " V";
+static const char edit_o_suf[] = " RPM";
 #define O_VAL_WIDTH         4
 #define O_VAL_PREC          0
 #define O_EDIT_MIN          (strlen(edit_o_pre)-1)
@@ -151,7 +151,7 @@ static void Update_Values(void) {
     state.k_p = parameters.Kp;
     state.k_i = parameters.Ki / SAMPLE_RATE;
     state.k_d = parameters.Kd * SAMPLE_RATE;
-    state.C = DUTY_50 / parameters.S_50;
+    state.C = DUTY_50 / parameters.O_50;
 }
 
 void Controller_Init(void) {
