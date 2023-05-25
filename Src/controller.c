@@ -56,14 +56,14 @@ static const char edit_o_suf[] = " V";
 #define ENCODER_VAL         (TIM2->CNT>>2)
 #define ENCODER_MAX(a)      (TIM2->ARR=(a)<<2)
 
-#define ENC_COOLDOWN_START()    HAL_TIM_Base_Start_IT(&htim4)
-#define ENC_COOLDOWN_STOP()     HAL_TIM_Base_Stop_IT(&htim4)
+#define ENC_COOLDOWN_START()    HAL_TIM_Base_Start_IT(&htim5)
+#define ENC_COOLDOWN_STOP()     HAL_TIM_Base_Stop_IT(&htim5)
 
-#define BTN_COOLDOWN_START()    HAL_TIM_Base_Start_IT(&htim5)
-#define BTN_COOLDOWN_STOP()     HAL_TIM_Base_Stop_IT(&htim5)
+#define BTN_COOLDOWN_START()    HAL_TIM_Base_Start_IT(&htim9)
+#define BTN_COOLDOWN_STOP()     HAL_TIM_Base_Stop_IT(&htim9)
 
-#define DUTY_MIN        (DUTY_50*0.02)
-#define DUTY_MAX        (DUTY_50*1.98)
+#define DUTY_MIN        (DUTY_50*0.05)
+#define DUTY_MAX        (DUTY_50*1.95)
 
 #define ADC_MIN         0.0f
 #define ADC_MAX         3.2f
@@ -76,7 +76,7 @@ static const char edit_o_suf[] = " V";
 #define MAX(a,b)        (a>b ? a : b)
 #define CLAMP(c, a, b)  MIN(MAX(c, a), b)
 
-#define OUTPUT_VAL      TIM3->CCR1
+#define OUTPUT_VAL      TIM1->CCR2
 #define SAMPLE_RATE     30e3
 
 #define SCREEN_BUFF_LEN   128
@@ -138,11 +138,11 @@ static struct {
 } state;
 
 static void Start_Buzzer(void) {
-    HAL_TIM_Base_Stop_IT(&htim9);
+    HAL_TIM_Base_Stop_IT(&htim10);
 #ifdef BUZZER_ENABLE
-    HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_1);
+    HAL_TIM_PWM_Start(&htim4, TIM_CHANNEL_1);
 #endif
-    HAL_TIM_Base_Start_IT(&htim9);
+    HAL_TIM_Base_Start_IT(&htim10);
 }
 
 static void Update_Values(void) {
@@ -178,19 +178,19 @@ void Controller_Init(void) {
     }
     printf(" on I2C2, address 0x%2X.\r\n", OLED_I2C_ADDR);
 
+    if (HAL_TIM_PWM_Start(&htim1, TIM_CHANNEL_2) == HAL_OK) {
+        printf("PWM output initialized");
+    } else {
+        printf("!!Error initializing");
+    }
+    printf(" on TIM1.\r\n");
+
     if (HAL_TIM_Encoder_Start(&htim2, TIM_CHANNEL_ALL) == HAL_OK) {
         printf("Rotary encoder initialized");
     } else {
         printf("!!Error initializing rotary encoder");
     }
     printf(" on TIM2.\r\n");
-
-    if (HAL_TIM_PWM_Start(&htim3, TIM_CHANNEL_1) == HAL_OK) {
-        printf("PWM output initialized");
-    } else {
-        printf("!!Error initializing");
-    }
-    printf(" on TIM3.\r\n");
 
     if (HAL_ADC_Start_DMA(&hadc1, (uint32_t *) state.adc_buff, ADC_BUFF_LEN)
         == HAL_OK) {
@@ -263,6 +263,7 @@ void Controller_Welcome(void) {
 void Set_LCD_Main(void) {
     static uint16_t old_S = 0;
     static uint16_t old_e = 0;
+    char setpoint[10];
     char error_out[10];
 
     if (state.first_entry == true || (old_S != state.S_RPM || old_e != state.e_ss)) {
@@ -274,16 +275,14 @@ void Set_LCD_Main(void) {
         LCD_Enable(true, false, false);
         LCD_Set_Cursor(0, 0);
         LCD_Print_s("S: ");
-        LCD_Print_i(old_S);
-        LCD_Print_s(" RPM");
+        sprintf(setpoint, "%04d RPM", old_S);
+        LCD_Print_s(setpoint);
         LCD_Set_Cursor(1,0);
         LCD_Print_s("e: ");
-        sprintf(error_out, "%+07.2f", (float)state.e_ss / (float)state.S_RPM * 100);
+        sprintf(error_out, "%+07.2f%%", (float)state.e_ss / (float)state.S_RPM * 100);
         LCD_Print_s(error_out);
-        LCD_Print_s("%");
         LCD_End_Payload();
         LCD_Send_Payload();
-
     }
     osDelay(500);
 }

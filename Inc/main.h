@@ -67,10 +67,6 @@ void Error_Handler(void);
 #define ControlBtn_Pin GPIO_PIN_1
 #define ControlBtn_GPIO_Port GPIOC
 #define ControlBtn_EXTI_IRQn EXTI1_IRQn
-#define Enc_CH1_Pin GPIO_PIN_0
-#define Enc_CH1_GPIO_Port GPIOA
-#define Enc_CH2_Pin GPIO_PIN_1
-#define Enc_CH2_GPIO_Port GPIOA
 #define EncBtn_Pin GPIO_PIN_4
 #define EncBtn_GPIO_Port GPIOA
 #define EncBtn_EXTI_IRQn EXTI4_IRQn
@@ -78,20 +74,20 @@ void Error_Handler(void);
 #define LD2_GPIO_Port GPIOA
 #define Setpoint_Pin GPIO_PIN_6
 #define Setpoint_GPIO_Port GPIOA
-#define Measure_Pin GPIO_PIN_7
-#define Measure_GPIO_Port GPIOA
 #define OLED_SCL_Pin GPIO_PIN_10
 #define OLED_SCL_GPIO_Port GPIOB
 #define CPU_LOAD_Pin GPIO_PIN_8
 #define CPU_LOAD_GPIO_Port GPIOC
+#define PWM_out_Pin GPIO_PIN_9
+#define PWM_out_GPIO_Port GPIOA
 #define TMS_Pin GPIO_PIN_13
 #define TMS_GPIO_Port GPIOA
 #define TCK_Pin GPIO_PIN_14
 #define TCK_GPIO_Port GPIOA
 #define OLED_SDA_Pin GPIO_PIN_3
 #define OLED_SDA_GPIO_Port GPIOB
-#define PWM_Out_Pin GPIO_PIN_4
-#define PWM_Out_GPIO_Port GPIOB
+#define BUZZER_Pin GPIO_PIN_6
+#define BUZZER_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 extern ADC_HandleTypeDef hadc1;
@@ -108,6 +104,7 @@ extern TIM_HandleTypeDef htim3;
 extern TIM_HandleTypeDef htim4;
 extern TIM_HandleTypeDef htim5;
 extern TIM_HandleTypeDef htim9;
+extern TIM_HandleTypeDef htim10;
 
 extern UART_HandleTypeDef huart2;
 /* USER CODE END Private defines */
