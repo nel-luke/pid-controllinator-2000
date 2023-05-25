@@ -3,7 +3,7 @@
 //
 
 #define BUZZER_ENABLE
-//#define PWM_INPUT
+#define PWM_INPUT
 
 #include "controller.h"
 #include "main.h"
