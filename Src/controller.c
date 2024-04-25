@@ -3,7 +3,7 @@
 //
 
 #define BUZZER_ENABLE
-#define PWM_INPUT
+//#define PWM_INPUT
 
 #include "controller.h"
 #include "main.h"
@@ -155,6 +155,40 @@ static struct {
     uint16_t* I_ptr;
 } state;
 
+char serial_out[50];
+
+uint16_t get_input(const uint16_t new_input) {
+  #define INPUT_BUFFER_LENGTH 32
+  static uint16_t input_buffer[INPUT_BUFFER_LENGTH];
+  static uint16_t* input_buffer_ptr = input_buffer;
+
+  *input_buffer_ptr = new_input >> 5; // LOG2(INPUT_BUFFER_LENGTH)
+  input_buffer_ptr = (input_buffer_ptr - input_buffer) == (INPUT_BUFFER_LENGTH - 1) ? input_buffer : input_buffer_ptr + 1;
+
+  uint16_t input = 0;
+  for (int i = 0; i < INPUT_BUFFER_LENGTH; i++) {
+    input += input_buffer[i];
+  }
+
+  return input;
+}
+
+uint16_t get_setpoint(const uint16_t new_setpoint) {
+#define SETPOINT_BUFFER_LENGTH 32
+  static uint16_t setpoint_buffer[SETPOINT_BUFFER_LENGTH];
+  static uint16_t* setpoint_buffer_ptr = setpoint_buffer;
+
+  *setpoint_buffer_ptr = new_setpoint >> 5; // LOG2(SETPOINT_BUFFER_LENGTH)
+  setpoint_buffer_ptr = (setpoint_buffer_ptr - setpoint_buffer) == (SETPOINT_BUFFER_LENGTH - 1) ? setpoint_buffer : setpoint_buffer_ptr + 1;
+
+  uint16_t setpoint = 0;
+  for (int i = 0; i < SETPOINT_BUFFER_LENGTH; i++) {
+    setpoint += setpoint_buffer[i];
+  }
+
+  return setpoint;
+}
+
 static void Start_Buzzer(void) {
     HAL_TIM_Base_Stop_IT(&htim10);
 #ifdef BUZZER_ENABLE
@@ -216,6 +250,9 @@ void Controller_Init(void) {
     } else {
         printf("!!Error initializing ADC.\r\n");
     }
+
+  sprintf(serial_out, "%09.4f %09.4f %09.4f\r\n", 0.0f, 0.0f, 0.0f);
+  HAL_UART_Transmit_DMA(&huart2, serial_out, strlen(serial_out));
 
 #ifdef PWM_INPUT
     HAL_StatusTypeDef ret = HAL_TIM_IC_Start_DMA(&htim3, TIM_CHANNEL_1, (uint32_t*) &state.pwm_input[0], 1);
@@ -426,21 +463,28 @@ _Noreturn void Service_LCD_Task(__attribute__((unused)) void const* argument) {
 static void Controller_Do_Control(void) {
     static double ITerm = 0;
     static double lastInput = 0;
+    double output = 0.0;
 
     if (state.manual_control) {
-        uint16_t val = (uint16_t)floor((float)state.S_RPM * state.C);
+        output = state.S_RPM;
+        uint16_t val = (uint16_t)floor((float)output * state.C);
         val = CLAMP(val, DUTY_MIN, DUTY_MAX);
         OUTPUT_VAL = val;
-        ITerm = val;
+        ITerm = output;
     } else {
-        ITerm += state.k_i * state.e_ss * state.C;
-        ITerm = CLAMP(ITerm, DUTY_MIN, DUTY_MAX);
+        ITerm += state.k_i * state.e_ss;
+        ITerm = CLAMP(ITerm, 0, 9000);
 
-        double dInput = (state.I_RPM - lastInput)*state.C;
-        double output = state.k_p*state.e_ss*state.C + ITerm - state.k_d*dInput;
-        OUTPUT_VAL = CLAMP((uint16_t)floor(output), DUTY_MIN, DUTY_MAX);
+        double dInput = (state.I_RPM - lastInput);
+        output = state.k_p*state.e_ss + ITerm - state.k_d*dInput;
+        double pwm_output = output * state.C;
+
+        OUTPUT_VAL = CLAMP((uint16_t)floor(pwm_output), DUTY_MIN, DUTY_MAX);
     }
     lastInput = state.I_RPM;
+
+    output = CLAMP(output, 0, 9000);
+    sprintf(serial_out, "%09.4f %09.4f %09.4f\r\n", state.S_RPM, state.I_RPM, output);
 }
 
 _Noreturn void Service_Control_Task(__attribute__((unused)) void const* argument) {
@@ -631,7 +675,7 @@ _Noreturn void Service_OLED_Task(__attribute__((unused)) void *argument) {
             max = MAX(state.S_buff[i], max);
         }
 
-        uint16_t prev = (uint16_t)(floor(state.S_buff[0] * -1*(30.0/max)) + (int16_t)30);
+        uint16_t prev = (uint16_t)(floor(state.S_buff[0] * (-30.0/max)) + (int16_t)30);
         for (int i = 1; i < SCREEN_BUFF_LEN; i++) {
             uint16_t val = (uint16_t)(floor(state.S_buff[i] * (-30.0/max)) + (int16_t)30);
             OLED_DrawLine((i-1), prev,i, val, OLED_COLOR_WHITE);
@@ -656,6 +700,6 @@ _Noreturn void Service_OLED_Task(__attribute__((unused)) void *argument) {
         }
 
         OLED_UpdateScreen();
-        osDelay(20);
+        osDelay(100);
     }
 }
